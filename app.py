@@ -113,7 +113,7 @@ def send_email(strong_buy, strong_sell, all_data, updated_at):
     # Resend API - dung HTTPS port 443, khong bi Railway chan
     payload = json.dumps({
         "from":    "Forex Dashboard <onboarding@resend.dev>",
-        "to":      [EMAIL_TO],
+        "to":      ["ch2000vn@gmail.com"],
         "subject": subject,
         "html":    html_body
     }).encode("utf-8")
