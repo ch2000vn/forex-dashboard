@@ -118,9 +118,19 @@ def send_email(strong_buy, strong_sell, all_data, updated_at):
         msg["From"]    = EMAIL_FROM
         msg["To"]      = EMAIL_TO
         msg.attach(MIMEText(html_body, "html", "utf-8"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(EMAIL_FROM, EMAIL_PASSWORD)
-            smtp.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
+
+        # Thu port 587 (TLS) truoc, neu loi thi thu 465 (SSL)
+        try:
+            with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as smtp:
+                smtp.ehlo()
+                smtp.starttls()
+                smtp.login(EMAIL_FROM, EMAIL_PASSWORD)
+                smtp.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
+        except Exception:
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
+                smtp.login(EMAIL_FROM, EMAIL_PASSWORD)
+                smtp.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
+
         print(f"  [EMAIL] Gui thanh cong -> {EMAIL_TO}")
     except smtplib.SMTPAuthenticationError:
         print("  [EMAIL] Loi xac thuc - kiem tra EMAIL_PASSWORD")
@@ -211,6 +221,38 @@ def api_status():
 @app.route("/health")
 def health():
     return "OK", 200
+
+@app.route("/test-email")
+def test_email():
+    """Test gui email - mo URL nay tren browser de kiem tra."""
+    try:
+        updated_at = datetime.now().strftime("%H:%M %d/%m/%Y")
+        fake_buy  = [{"sym":"EURUSD","cat":"forex","d1_above50":True,
+                      "h4_above50":True,"macd_status":"about_up",
+                      "macd_hist":-0.00012,"d1_price":1.17233}]
+        fake_sell = [{"sym":"USDCAD","cat":"forex","d1_above50":False,
+                      "h4_above50":False,"macd_status":"about_down",
+                      "macd_hist":0.00008,"d1_price":1.35880}]
+        send_email(fake_buy, fake_sell, fake_buy + fake_sell, updated_at)
+        return f"""
+        <html><body style="font-family:sans-serif;padding:40px;max-width:500px;margin:0 auto;">
+          <h2 style="color:#1D9E75;">Email da duoc gui!</h2>
+          <p>Kiem tra hop thu: <strong>{EMAIL_TO}</strong></p>
+          <p style="color:#888;font-size:13px;">
+            Neu khong thay email sau 1 phut:<br>
+            - Kiem tra thu muc Spam<br>
+            - Kiem tra lai EMAIL_PASSWORD (phai dung App Password)<br>
+            - Dam bao 2-Step Verification da bat tren Gmail
+          </p>
+          <a href="/" style="color:#534AB7;">← Quay lai dashboard</a>
+        </body></html>"""
+    except Exception as e:
+        return f"""
+        <html><body style="font-family:sans-serif;padding:40px;">
+          <h2 style="color:#D85A30;">Loi gui email!</h2>
+          <p><code>{str(e)}</code></p>
+          <p>Kiem tra lai EMAIL_PASSWORD trong Variables.</p>
+        </body></html>""", 500
 
 # ============================================================
 # SCHEDULER THREAD
