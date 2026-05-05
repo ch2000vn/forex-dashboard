@@ -23,7 +23,7 @@ app = Flask(__name__, static_folder="static")
 # ============================================================
 EMAIL_TO         = os.environ.get("EMAIL_TO",         "ch2000vn@gmail.com")
 EMAIL_FROM       = os.environ.get("EMAIL_FROM",       "ch2000vn@gmail.com")
-RESEND_API_KEY   = os.environ.get("RESEND_API_KEY",   "")  # lay tu Railway Variables
+BREVO_API_KEY    = os.environ.get("BREVO_API_KEY",    "")  # lay tu Railway Variables
 SCHEDULE_HOURS   = [3, 7, 11, 15, 19, 23]
 PORT             = int(os.environ.get("PORT", 8080))
 
@@ -40,8 +40,8 @@ last_updated  = None
 # GUI EMAIL
 # ============================================================
 def send_email(strong_buy, strong_sell, all_data, updated_at):
-    if not RESEND_API_KEY:
-        print("  [EMAIL] Chua cau hinh RESEND_API_KEY - bo qua")
+    if not BREVO_API_KEY:
+        print("  [EMAIL] Chua cau hinh BREVO_API_KEY - bo qua")
         return
 
     total = len(strong_buy) + len(strong_sell)
@@ -110,24 +110,28 @@ def send_email(strong_buy, strong_sell, all_data, updated_at):
       </div>
     </body></html>"""
 
-    # Resend API - dung HTTPS port 443, khong bi Railway chan
+    # Brevo (Sendinblue) API - HTTPS port 443, khong bi Railway chan
     payload = json.dumps({
-        "from":    "Forex Dashboard <onboarding@resend.dev>",
-        "to":      ["ch2000vn@gmail.com"],
-        "subject": subject,
-        "html":    html_body
+        "sender":      {"name": "Forex Dashboard", "email": "ch2000vn@gmail.com"},
+        "to":          [{"email": EMAIL_TO}],
+        "subject":     subject,
+        "htmlContent": html_body
     }).encode("utf-8")
     req = urllib.request.Request(
-        "https://api.resend.com/emails",
+        "https://api.brevo.com/v3/smtp/email",
         data=payload,
-        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+        headers={
+            "api-key":      BREVO_API_KEY,
+            "Content-Type": "application/json",
+            "Accept":       "application/json"
+        },
         method="POST"
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             print(f"  [EMAIL] Gui thanh cong -> {EMAIL_TO}")
     except urllib.error.HTTPError as e:
-        print(f"  [EMAIL] Loi Resend {e.code}: {e.read().decode()[:200]}")
+        print(f"  [EMAIL] Loi Brevo {e.code}: {e.read().decode()[:200]}")
     except Exception as e:
         print(f"  [EMAIL] Loi: {e}")
 
