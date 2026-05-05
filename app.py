@@ -8,11 +8,9 @@ APP.PY - Web Server cho Railway
 - Co nut Load thu cong tren web
 """
 
-import os, json, threading, smtplib, schedule, time
+import os, json, threading, schedule, time, urllib.request, urllib.error
 from datetime import datetime, timezone
 from flask import Flask, jsonify, send_from_directory
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 # Import logic fetch tu file chinh
 from ma_dashboard_fetcher import fetch_all, build_html
@@ -23,11 +21,11 @@ app = Flask(__name__, static_folder="static")
 # ============================================================
 # CAU HINH - lay tu Environment Variables tren Railway
 # ============================================================
-EMAIL_TO       = os.environ.get("EMAIL_TO",       "ch2000vn@gmail.com")
-EMAIL_FROM     = os.environ.get("EMAIL_FROM",     "ch2000vn@gmail.com")
-EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD", "")
-SCHEDULE_HOURS = [3, 7, 11, 15, 19, 23]
-PORT           = int(os.environ.get("PORT", 8080))
+EMAIL_TO         = os.environ.get("EMAIL_TO",         "ch2000vn@gmail.com")
+EMAIL_FROM       = os.environ.get("EMAIL_FROM",       "ch2000vn@gmail.com")
+RESEND_API_KEY   = os.environ.get("RESEND_API_KEY",   "")  # lay tu Railway Variables
+SCHEDULE_HOURS   = [3, 7, 11, 15, 19, 23]
+PORT             = int(os.environ.get("PORT", 8080))
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "dashboard_data.json")
@@ -42,8 +40,8 @@ last_updated  = None
 # GUI EMAIL
 # ============================================================
 def send_email(strong_buy, strong_sell, all_data, updated_at):
-    if not EMAIL_PASSWORD:
-        print("  [EMAIL] Chua cau hinh EMAIL_PASSWORD - bo qua")
+    if not RESEND_API_KEY:
+        print("  [EMAIL] Chua cau hinh RESEND_API_KEY - bo qua")
         return
 
     total = len(strong_buy) + len(strong_sell)
@@ -112,28 +110,24 @@ def send_email(strong_buy, strong_sell, all_data, updated_at):
       </div>
     </body></html>"""
 
+    # Resend API - dung HTTPS port 443, khong bi Railway chan
+    payload = json.dumps({
+        "from":    "Forex Dashboard <onboarding@resend.dev>",
+        "to":      [EMAIL_TO],
+        "subject": subject,
+        "html":    html_body
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+        method="POST"
+    )
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"]    = EMAIL_FROM
-        msg["To"]      = EMAIL_TO
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
-
-        # Thu port 587 (TLS) truoc, neu loi thi thu 465 (SSL)
-        try:
-            with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as smtp:
-                smtp.ehlo()
-                smtp.starttls()
-                smtp.login(EMAIL_FROM, EMAIL_PASSWORD)
-                smtp.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
-        except Exception:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
-                smtp.login(EMAIL_FROM, EMAIL_PASSWORD)
-                smtp.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
-
-        print(f"  [EMAIL] Gui thanh cong -> {EMAIL_TO}")
-    except smtplib.SMTPAuthenticationError:
-        print("  [EMAIL] Loi xac thuc - kiem tra EMAIL_PASSWORD")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            print(f"  [EMAIL] Gui thanh cong -> {EMAIL_TO}")
+    except urllib.error.HTTPError as e:
+        print(f"  [EMAIL] Loi Resend {e.code}: {e.read().decode()[:200]}")
     except Exception as e:
         print(f"  [EMAIL] Loi: {e}")
 
